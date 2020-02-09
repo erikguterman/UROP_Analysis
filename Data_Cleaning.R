@@ -1,6 +1,7 @@
 library(tidyverse)
 library(readxl)
 library(magrittr)
+library(zoo)
 
 ##minnesota is nice and easy, the warnings relate to columns we don't use anyway so don't need to pay attention to them
 MN_results <-
@@ -44,6 +45,7 @@ WI_rowcleaning <- function(df)
 }
 
 district_IDs <- paste(rep("District"), 1:8)
+years <- as.factor(seq(from = 2012, to = 2018, by = 2))
 WI_sheets <- dir() %>% str_subset("WI_")
 WI_col_names <-
   c(
@@ -77,11 +79,19 @@ for (i in 1:4)
   WI_results[[i]] <- lapply(WI_results[[i]], WI_rowcleaning)
   WI_results[[i]] <- lapply(WI_results[[i]], setNames, nm = WI_col_names)
   WI_results[[i]] <- bind_rows(WI_results[[i]])
+  WI_results[[i]]$Year <- years[i]
 }
 
+WI_results %<>%
+  ##binds into one dataframe, changes the county factor to apply to every line instead of the first one 
+  ##and then filters out the rows which are just sums of the county-level data or the totals
+  bind_rows() %>% mutate(County = na.locf(County)) %>% filter((!str_detect(County, "Total") &
+                                                                           (!str_detect(Ward, "Total"))))
 
+##and now we do the cleaning process for minnesota
+for(i in 1:4)
+{
+  MN_results[[i]]$Year <- years[[i]]
+}
 
-##use this to remove county and total values, in order to avoid double counting
-WI_results  %<>% filter((!str_detect(County, "Total") | is.na(County)) & (!str_detect(Ward, "Total")))
-
-
+temp <- bind_rows(MN_results)
