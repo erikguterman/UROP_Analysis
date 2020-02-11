@@ -2,10 +2,15 @@ library(tidyverse)
 library(readxl)
 library(magrittr)
 library(zoo)
+library(ipumsr)
+
+#################################################
+### Reading in the state-level voting results ###
+#################################################
 
 ##minnesota is nice and easy, the warnings relate to columns we don't use anyway so don't need to pay attention to them
 MN_results <-
-  dir() %>% str_subset("MN_") %>% lapply(read_excel, sheet = "Results")
+  dir() %>% str_subset("MN_201(\\d)_all") %>% lapply(read_excel, sheet = "Results")
 
 WI_clean_function <- function(sheetIDs, list)
 {
@@ -25,6 +30,7 @@ WI_clean_function <- function(sheetIDs, list)
 }
 WI_rowcleaning <- function(df)
 {
+  ##there's an easier way to do this, but it's not worth the time required to optimize it
   if (ncol(df) == 7)
   {
     df <- add_column(df, temp = NA, .after = 5)
@@ -94,4 +100,12 @@ for(i in 1:4)
   MN_results[[i]]$Year <- years[[i]]
 }
 
-temp <- bind_rows(MN_results)
+##pull the common columns from all years (different years have different elections, e.g. presidential/gubernatorial)
+MN_common_cols <- Reduce(intersect, lapply(MN_results, names))
+MN_results <- do.call(rbind, lapply(MN_results, select, MN_common_cols))
+
+##reads in the IPUMS data
+
+ddi <- read_ipums_ddi("MNWI_AllYears_CountyInformation.xml")
+temp <- read_ipums_micro(ddi)
+
